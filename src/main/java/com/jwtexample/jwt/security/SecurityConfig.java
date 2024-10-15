@@ -1,75 +1,56 @@
 package com.jwtexample.jwt.security;
 
-import com.jwtexample.jwt.service.impl.UserServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.config.Customizer;
+import org.springframework.stereotype.Component;
 
-import static org.springframework.security.config.Customizer.withDefaults;
-
-@Configuration
-@EnableWebSecurity
+@Component
 @EnableMethodSecurity
+@AllArgsConstructor
 public class SecurityConfig {
 
+    private UserDetailsService userDetailsService;
 
+    private JwtAuthenticationEntryPoint authenticationEntryPoint;
 
-    private final JwtRequestFilter jwtRequestFilter;
-    @Autowired
-    private UserDetailsService userService;
+    private JwtAuthenticationFilter authenticationFilter;
 
-    public SecurityConfig(JwtRequestFilter jwtRequestFilter) {
-        this.jwtRequestFilter = jwtRequestFilter;
+    @Bean
+    public static PasswordEncoder passwordEncoder(){
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // CSRF devre dışı bırakılıyor çünkü JWT zaten güvenli bir kimlik doğrulama yöntemi sağlar.
-        // Session kullanımı da JWT ile gereksiz olduğu için STATELESS olarak ayarlandı.
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        // "/authenticate" gibi endpoint'ler herkesin erişimine açık.
-                       // .requestMatchers("/api/authenticate").permitAll()
-                        .requestMatchers("/api/authenticate/**","/user/save/**").permitAll()
-                        // Diğer tüm istekler kimlik doğrulaması gerektiriyor.
-                        .anyRequest().authenticated()
-                );
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-                // HTTP oturumunun (session) durumsuz (stateless) olduğunu belirtir. JWT'de oturum yönetimi yoktur.
-                http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        // JWT doğrulama filtresini ekleyin, böylece her istekte token kontrol edilir.
-        http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+        http.csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests((authorize) -> {
+                    authorize.requestMatchers("/api/auth/**").permitAll();
+                    authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    authorize.anyRequest().authenticated();
+                }).httpBasic(Customizer.withDefaults());
+
+        http.exceptionHandling( exception -> exception
+                .authenticationEntryPoint(authenticationEntryPoint));
+
+        http.addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-
-
-    // AuthenticationManager için bir bean oluşturuyoruz. Bu, JWT doğrulama işlemlerinde gereklidir.
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
-    }
-
-    // Şifreleri encode etmek için PasswordEncoder bean'i kullanılır (örneğin, BCrypt).
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 }

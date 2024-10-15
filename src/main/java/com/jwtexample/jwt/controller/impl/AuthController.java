@@ -1,37 +1,37 @@
 package com.jwtexample.jwt.controller.impl;
 
-import com.jwtexample.jwt.Dto.AuthRequest;
-import com.jwtexample.jwt.security.JwtUtil;
-import com.jwtexample.jwt.security.MyUserDetailsService;
+import com.jwtexample.jwt.Dto.AuthResponseDto;
+import com.jwtexample.jwt.Dto.LoginDto;
+import com.jwtexample.jwt.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import lombok.AllArgsConstructor;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-
+@AllArgsConstructor
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/auth")
 public class AuthController {
 
     @Autowired
-    private AuthenticationManager authenticationManager;
+    private AuthService authService;
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    // Build Login REST API
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponseDto> login(@RequestBody LoginDto loginDto){
 
-    @Autowired
-    private MyUserDetailsService userDetailsService;
+        //01 - Receive the token from AuthService
+        String token = authService.login(loginDto);
 
-    @PostMapping("/authenticate")
-    public String createAuthenticationToken(@RequestBody AuthRequest authRequest) throws Exception {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword()));
+        //02 - Set the token as a response using JwtAuthResponse Dto class
+        AuthResponseDto authResponseDto = new AuthResponseDto();
+        authResponseDto.setAccessToken(token);
 
-        
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
-        final String jwt = jwtUtil.generateToken(userDetails.getUsername());
-
-        return jwt;
+        //03 - Return the response to the user
+        return new ResponseEntity<>(authResponseDto, HttpStatus.OK);
     }
 }
